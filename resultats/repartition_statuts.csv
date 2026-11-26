@@ -1,0 +1,4 @@
+status,nb_paiements,montant,part_pct
+PAID,150,2669235.61,72.12
+REFUSED,37,423555.75,17.79
+PENDING,21,363918.22,10.1
