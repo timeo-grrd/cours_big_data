@@ -1,5 +1,7 @@
 .venv
-data
+data/raw
+data/processed
+data/dataset_nettoye
 .env
 .vscode/
 .ipynb_checkpoints/
