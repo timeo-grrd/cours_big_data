@@ -32,9 +32,18 @@ Ouvrir ensuite `notebooks/01_atelier_exploration_sources.ipynb`, puis `notebooks
 ## Organisation
 - `data/raw/` : réponses JSON brutes et CSV d'exemple hors ligne.
 - `data/processed/` : tables aplaties produites par le script.
+- `data/dataset_nettoye/` : table de commandes nettoyée, générée par le script de nettoyage.
 - `scripts/01_collecte_dummyjson.py` : extraction des ressources.
+- `scripts/02_nettoyage_donnees.py` : suppression des lignes contenant une valeur numérique négative.
 - `notebooks/` : deux notebooks guidés.
 - `consignes/` : fiche étudiant et barème indicatif.
+
+## Nettoyer les données de commandes
+Après la collecte (ou avec le CSV d'exemple hors ligne), lancer depuis la racine du projet :
+```powershell
+.\.venv\Scripts\python.exe .\scripts\02_nettoyage_donnees.py
+```
+Le script lit `data/processed/commandes_ecommerce.csv` s'il existe, sinon le CSV d'exemple `data/raw/commandes_ecommerce.csv`. Il conserve les sources intactes et écrit le résultat dans `data/dataset_nettoye/commandes_ecommerce_nettoyees.csv`. Les lignes contenant une valeur numérique négative sont retirées; les lignes sans quantité positive ou sans prix unitaire valide sont également écartées.
 
 ## Sources API étudiées
 - Produits : `https://dummyjson.com/products?limit=0`
