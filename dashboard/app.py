@@ -1,6 +1,6 @@
 """Dashboard BigData Commerce Analytics (TP3).
 
-Lit les datasets pseudonymisés produits par notebooks/atelier_jour3.ipynb.
+Lit les datasets pseudonymisés produits par notebooks/TP3.ipynb.
 Lancement, depuis la racine du projet :  python -m streamlit run dashboard/app.py
 """
 from pathlib import Path
@@ -115,7 +115,7 @@ def charger_donnees():
 
 # ------------------------------------------------------------------ données
 if not (FICHIER_COMMANDES.exists() and FICHIER_PAIEMENTS.exists()):
-    st.error("Datasets introuvables dans data/analytique/. Exécuter d'abord le notebook notebooks/atelier_jour3.ipynb.")
+    st.error("Datasets introuvables dans data/analytique/. Exécuter d'abord le notebook notebooks/TP3.ipynb.")
     st.stop()
 
 commandes, paiements = charger_donnees()
@@ -129,15 +129,21 @@ with st.sidebar:
     if not choix_categories:
         choix_categories = categories
     else:
-        st.info("Les paiements affichés sont ceux des paniers contenant au moins un produit des catégories choisies.")
+        st.info("Filtre actif : les montants ne comptent que les produits des catégories choisies, "
+                "les nombres de paiements comptent les paniers qui en contiennent au moins un.")
     st.divider()
     note("Données DummyJSON simulées, montants affichés en euros sans conversion. "
          "Les clients sont identifiés uniquement par un pseudonyme HMAC-SHA256 : aucun identifiant direct "
          "n'est présent dans les datasets.")
 
+# Les montants sont calculés au niveau des lignes de produits, pour ne compter que les catégories filtrées.
+# Sans filtre, la somme des lignes d'un panier est égale au montant de son paiement.
 commandes_f = commandes[commandes["category"].isin(choix_categories)]
+lignes_f = commandes_f.merge(
+    paiements[["cart_id", "payment_id", "payment_status", "statut", "mois"]], on="cart_id", how="inner"
+)
+lignes_paid = lignes_f[lignes_f["payment_status"] == "PAID"]
 paiements_f = paiements[paiements["cart_id"].isin(commandes_f["cart_id"].unique())]
-paid_f = paiements_f[paiements_f["payment_status"] == "PAID"]
 
 # ------------------------------------------------------------------ en-tête
 st.markdown(
@@ -159,26 +165,26 @@ onglet_resume, onglet_cat, onglet_mois, onglet_clients, onglet_explo = st.tabs(
 
 # ------------------------------------------------------------------ vue d'ensemble
 with onglet_resume:
-    ca_commandes = commandes_f["discounted_line_total"].sum()
-    encaisse = paid_f["amount"].sum()
-    montant_paniers = paiements_f["amount"].sum()
+    ca_commandes = lignes_f["discounted_line_total"].sum()
+    encaisse = lignes_paid["discounted_line_total"].sum()
     nb_paniers = commandes_f["cart_id"].nunique()
-    taux_paid = len(paid_f) / len(paiements_f) * 100 if len(paiements_f) else 0
-    part_encaisse = encaisse / montant_paniers * 100 if montant_paniers else 0
+    nb_paid = lignes_paid["cart_id"].nunique()
+    taux_paid = nb_paid / len(paiements_f) * 100 if len(paiements_f) else 0
+    part_encaisse = encaisse / ca_commandes * 100 if ca_commandes else 0
 
     st.markdown(
         '<div class="kpis">'
         + carte_kpi("CA des commandes", euros_court(ca_commandes), "Somme des lignes après remise")
-        + carte_kpi("Encaissements", euros_court(encaisse), f"{pourcent(part_encaisse)} du montant des paniers")
+        + carte_kpi("Encaissements", euros_court(encaisse), f"{pourcent(part_encaisse)} du CA des commandes")
         + carte_kpi("Paniers", f"{nb_paniers}", f"{len(commandes_f)} lignes de produits")
-        + carte_kpi("Paiements acceptés", pourcent(taux_paid), f"{len(paid_f)} sur {len(paiements_f)} tentatives")
+        + carte_kpi("Paiements acceptés", pourcent(taux_paid), f"{nb_paid} sur {len(paiements_f)} tentatives")
         + "</div>",
         unsafe_allow_html=True,
     )
 
     statuts = (
-        paiements_f.groupby(["payment_status", "statut"])
-        .agg(nb=("payment_id", "count"), montant=("amount", "sum"))
+        lignes_f.groupby(["payment_status", "statut"])
+        .agg(nb=("cart_id", "nunique"), montant=("discounted_line_total", "sum"))
         .reset_index()
     )
     statuts["part"] = statuts["nb"] / statuts["nb"].sum() * 100
@@ -208,7 +214,7 @@ with onglet_resume:
         axe_euros(fig.layout.xaxis)
         st.plotly_chart(mise_en_forme(fig, 320), width="stretch")
 
-    note(f"Seuls les paiements acceptés sont encaissés : {euros(montant_paniers - encaisse)} "
+    note(f"Seuls les paiements acceptés sont encaissés : {euros(ca_commandes - encaisse)} "
          "de commandes refusées ou en attente ne rapportent rien dans ce scénario.")
 
 # ------------------------------------------------------------------ catégories
@@ -240,8 +246,8 @@ with onglet_cat:
 # ------------------------------------------------------------------ évolution mensuelle
 with onglet_mois:
     mensuel = (
-        paid_f.groupby("mois")
-        .agg(encaissements=("amount", "sum"), nb=("payment_id", "count"))
+        lignes_paid.groupby("mois")
+        .agg(encaissements=("discounted_line_total", "sum"), nb=("cart_id", "nunique"))
         .reset_index()
         .sort_values("mois")
     )
@@ -274,9 +280,13 @@ with onglet_mois:
 
 # ------------------------------------------------------------------ clients
 with onglet_clients:
+    encaisse_total = lignes_paid["discounted_line_total"].sum()
     n = st.slider("Nombre de clients affichés", min_value=5, max_value=30, value=10)
-    top = paid_f.groupby("user_id_pseudo")["amount"].sum().nlargest(n).sort_values().reset_index()
-    part = top["amount"].sum() / paid_f["amount"].sum() * 100 if len(paid_f) else 0
+    top = (
+        lignes_paid.groupby("user_id_pseudo")["discounted_line_total"].sum()
+        .nlargest(n).sort_values().rename("amount").reset_index()
+    )
+    part = top["amount"].sum() / encaisse_total * 100 if encaisse_total else 0
 
     with st.container(border=True):
         fig = go.Figure(go.Bar(

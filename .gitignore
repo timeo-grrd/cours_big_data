@@ -2,8 +2,8 @@
 data/raw
 data/processed
 data/dataset_nettoye
+data/analytique/
 .env
 .vscode/
 .ipynb_checkpoints/
 /presentation/
-
