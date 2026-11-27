@@ -1,10 +1,26 @@
+# Bibliothèques Python du projet (pip install -r requirements.txt)
+# Prérequis hors pip : Java 17 (pour PySpark) et MongoDB 7 (conteneur Docker), voir le README.
+
+# Manipulation et visualisation des données
 pandas>=2.0
 numpy>=1.24
-requests>=2.31
-jupyter>=1.0
 matplotlib>=3.7
+
+# Collecte de l'API DummyJSON
+requests>=2.31
+
+# Notebooks
+jupyter>=1.0
+
+# Stockage : MongoDB
 pymongo>=4.0
+
+# Traitement distribué (le connecteur MongoDB pour Spark est téléchargé automatiquement au premier lancement)
 pyspark==4.0.1
+
+# Export des datasets analytiques au format Parquet
 pyarrow>=15.0
+
+# Dashboard
 streamlit>=1.40
 plotly>=5.0

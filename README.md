@@ -1,68 +1,138 @@
-# BigData Commerce Analytics — Kit pédagogique DummyJSON
-**B2 · Sup de Vinci Rennes · Jour 1 — Sources, exploration et qualité des données**
+# BigData Commerce Analytics
 
-## Objectif
-Ce kit sert à découvrir une API REST, inventorier plusieurs sources, comprendre leurs formats et leurs limites, puis profiler un jeu de commandes avec Pandas.
+**B2 · Sup de Vinci Rennes · Big Data (TP1, TP2, TP3)**
 
-## Important : nature des données
-DummyJSON est une API de données fictives/de démonstration. Ce n'est pas une plateforme e-commerce réelle, ni un historique transactionnel représentatif d'une entreprise. Les opérations POST/PUT/PATCH/DELETE sont simulées et ne persistent pas dans la base distante. Les données peuvent évoluer : le script capture un instantané à la date de collecte.
+Projet fil rouge sur trois jours : collecter les données d'une boutique en ligne de démonstration (API DummyJSON), les stocker dans MongoDB, les traiter avec PySpark, pseudonymiser les clients, puis présenter les indicateurs dans des graphiques et un dashboard Streamlit.
 
-La session de création de ce ZIP ne disposait pas d'un accès réseau Python à dummyjson.com. Le dossier `data/raw/` contient donc un **petit jeu de démonstration hors ligne**, explicitement identifié comme tel. Pour récupérer les jeux complets actuels, exécuter `scripts/01_collecte_dummyjson.py` depuis un poste connecté à Internet. Le script utilise `limit=0`, conserve les réponses JSON brutes, construit des CSV normalisés et écrit un manifeste de collecte. Il ne prétend pas que le mini-échantillon fourni est le jeu complet de l'API.
+```
+API DummyJSON + CSV  →  Python  →  MongoDB (base commerce)  →  PySpark  →  Parquet pseudonymisé  →  Matplotlib / Streamlit
+```
 
-## Démarrage rapide (Ubuntu / macOS / Linux)
+## Où trouver quoi
+
+- **Comptes rendus** : les comptes rendus en notebook sont dans le dossier [`Compte_rendu_et_Synthese/`](Compte_rendu_et_Synthese/)
+  - `Atelier_1_TP_1.ipynb` et `Atelier_2_TP_1.ipynb` : réponses du TP1 (sources, 5V, profilage) ;
+  - `Synthese_TP_2.ipynb` : analyse et questions de synthèse du TP2.
+- **Notebooks d'ingestion, de traitement et de sécurisation (TP2 et TP3)** : ils sont dans le dossier [`notebooks/`](notebooks/)
+  - `TP2_Atelier_1_ingestion_api_mongodb.ipynb` : ingestion des 8 ressources de l'API dans MongoDB, import des commandes, simulation des paiements ;
+  - `TP2_Atelier_2_Traitement_pyspark.ipynb` : traitement PySpark (lecture MongoDB, transformations, actions, lazy evaluation, partitions) et indicateurs ;
+  - `TP3.ipynb` : pseudonymisation HMAC des clients, export Parquet et graphiques Matplotlib.
+- **Dashboard** : le code du dashboard est dans [`dashboard/app.py`](dashboard/app.py)
+
+Autres dossiers :
+
+| Dossier | Contenu |
+|---|---|
+| `notebooks/01_atelier_exploration_sources.ipynb`, `02_atelier_profilage_pandas.ipynb` | Notebooks guidés du TP1 |
+| `notebooks/demo_spark_products.ipynb` | Démonstration PySpark fournie par l'enseignant |
+| `scripts/` | Collecte de l'API (`01_collecte_dummyjson.py`) et script de nettoyage (`02_nettoyage_donnees.py`) |
+| `resultats/` | Indicateurs calculés par Spark (CSV) et graphiques exportés (`resultats/graphiques/`) |
+| `captures/` | Captures de Spark UI (lazy evaluation, stages et tasks) |
+| `consignes/` | Fiche étudiant fournie avec le kit |
+| `.streamlit/config.toml` | Thème du dashboard |
+
+## Installation
+
+### Prérequis
+
+| Outil | Version | Rôle |
+|---|---|---|
+| Python | 3.10 ou plus (testé en 3.11) | Notebooks, collecte, dashboard |
+| Java | **17** (ou 21) | Requis par PySpark 4.0. Java 25 n'est pas pris en charge. |
+| Docker | récent | Faire tourner MongoDB |
+| MongoDB | 7 | Base de données `commerce` |
+
+### 1. MongoDB avec Docker
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+docker run -d -p 27017:27017 --name mongo mongo:7
+docker ps                  # le conteneur mongo doit être "Up"
+```
+
+Les fois suivantes, il suffit de `docker start mongo`.
+
+### 2. Environnement Python
+
+Ubuntu / macOS :
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install pandas requests jupyter matplotlib
-python scripts/01_collecte_dummyjson.py
-jupyter notebook
+python -m pip install -r requirements.txt
 ```
-Sous Windows PowerShell :
+
+Windows (PowerShell) :
 ```powershell
-py -m venv venv
-.\venv\Scripts\Activate.ps1
+py -3.11 -m venv C:\venvs\bigdata
+C:\venvs\bigdata\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install pandas requests jupyter matplotlib
-python scripts/01_collecte_dummyjson.py
-jupyter notebook
+python -m pip install -r requirements.txt
 ```
-Ouvrir ensuite `notebooks/01_atelier_exploration_sources.ipynb`, puis `notebooks/02_atelier_profilage_pandas.ipynb`.
 
-## Organisation
-- `data/raw/` : réponses JSON brutes et CSV d'exemple hors ligne.
-- `data/processed/` : tables aplaties produites par le script.
-- `data/dataset_nettoye/` : table de commandes nettoyée, générée par le script de nettoyage.
-- `scripts/01_collecte_dummyjson.py` : extraction des ressources.
-- `scripts/02_nettoyage_donnees.py` : suppression des lignes contenant une valeur numérique négative.
-- `notebooks/` : deux notebooks guidés.
-- `consignes/` : fiche étudiant et barème indicatif.
+### 3. Clé de pseudonymisation (TP3)
 
-## Nettoyer les données de commandes
-Après la collecte (ou avec le CSV d'exemple hors ligne), lancer depuis la racine du projet :
+Le notebook `TP3.ipynb` lit la clé secrète dans la variable d'environnement `PSEUDO_KEY`. **Chacun choisit sa propre clé, qui ne doit jamais être écrite dans le code ni poussée sur GitHub.**
+
+```bash
+export PSEUDO_KEY="une-phrase-secrete-longue"          # Linux / macOS, à définir avant de lancer Jupyter
+```
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\02_nettoyage_donnees.py
+setx PSEUDO_KEY "une-phrase-secrete-longue"            # Windows, puis fermer et rouvrir VS Code / le terminal
 ```
-Le script lit `data/processed/commandes_ecommerce.csv` s'il existe, sinon le CSV d'exemple `data/raw/commandes_ecommerce.csv`. Il conserve les sources intactes et écrit le résultat dans `data/dataset_nettoye/commandes_ecommerce_nettoyees.csv`. Les lignes contenant une valeur numérique négative sont retirées; les lignes sans quantité positive ou sans prix unitaire valide sont également écartées.
 
-## Sources API étudiées
-- Produits : `https://dummyjson.com/products?limit=0`
-- Paniers : `https://dummyjson.com/carts?limit=0`
-- Utilisateurs : `https://dummyjson.com/users?limit=0`
-- Publications : `https://dummyjson.com/posts?limit=0`
-- Commentaires : `https://dummyjson.com/comments?limit=0`
-- Recettes : `https://dummyjson.com/recipes?limit=0`
-- Citations : `https://dummyjson.com/quotes?limit=0`
-- Todos : `https://dummyjson.com/todos?limit=0`
+### 4. Particularités de Windows
 
-Les ressources `products`, `carts`, `users` sont le cœur du cas e-commerce. Les autres ressources servent à comparer des formats et à discuter de sources hors transactionnel.
+Le TP est prévu sous Ubuntu. Sous Windows, Spark a besoin de quelques réglages supplémentaires :
 
-## Schéma de la table de commandes pédagogique
-`commandes_ecommerce.csv` est construit à partir des lignes de paniers collectées :
-`order_id, cart_id, user_id, product_id, product_title, category, quantity, unit_price, line_total, discount_percentage, discounted_line_total, cart_total, order_date`
-**Attention :** DummyJSON carts n'est pas un véritable journal de commandes datées. `order_date` est une date pédagogique générée à partir d'une graine fixe pour permettre les exercices temporels ; elle ne provient pas de l'API. Le script la signale dans le manifeste. Les montants et articles proviennent des paniers renvoyés par l'API.
+- **Pas d'accent ni d'espace dans le chemin de l'environnement Python** : un chemin comme `C:\Users\Timéo\...` empêche Spark de trouver ses fichiers. D'où l'environnement dans `C:\venvs\bigdata`.
+- **Nom du PC avec un accent** : définir `setx SPARK_LOCAL_HOSTNAME localhost`.
+- **winutils** : Hadoop a besoin de `winutils.exe` et `hadoop.dll` sous Windows pour charger le connecteur MongoDB.
+  ```powershell
+  New-Item -ItemType Directory -Force C:\hadoop\bin
+  Invoke-WebRequest "https://raw.githubusercontent.com/cdarlint/winutils/master/hadoop-3.3.6/bin/winutils.exe" -OutFile C:\hadoop\bin\winutils.exe
+  Invoke-WebRequest "https://raw.githubusercontent.com/cdarlint/winutils/master/hadoop-3.3.6/bin/hadoop.dll" -OutFile C:\hadoop\bin\hadoop.dll
+  setx HADOOP_HOME C:\hadoop
+  ```
+  La première cellule de `TP2_Atelier_2_Traitement_pyspark.ipynb` configure ensuite ces variables pour la session Spark.
+
+Dans VS Code, choisir l'interpréteur de l'environnement (`Ctrl+Shift+P` → *Python: Select Interpreter*) et le même kernel dans chaque notebook.
+
+## Exécution
+
+Lancer les notebooks dans cet ordre, depuis la racine du projet (MongoDB démarré) :
+
+1. `notebooks/TP2_Atelier_1_ingestion_api_mongodb.ipynb` : remplit la base `commerce` (8 collections `raw_*`, `raw_commandes`, `raw_payments`). Il peut être relancé sans créer de doublons.
+2. `notebooks/TP2_Atelier_2_Traitement_pyspark.ipynb` : traitement Spark et indicateurs, exportés dans `resultats/`. Le premier lancement télécharge le connecteur MongoDB pour Spark (une à deux minutes). Spark UI est disponible sur http://localhost:4040 pendant la session.
+3. `notebooks/TP3.ipynb` : pseudonymisation, export Parquet dans `data/analytique/` et graphiques dans `resultats/graphiques/`.
+
+Puis le dashboard :
+```bash
+python -m streamlit run dashboard/app.py
+```
+Il s'ouvre sur http://localhost:8501 et lit les fichiers Parquet produits par `TP3.ipynb`.
+
+La simulation des paiements utilise une graine fixe (42) : tout le monde obtient les mêmes statuts et les mêmes indicateurs. Seuls les pseudonymes changent d'une clé à l'autre.
+
+## Données
+
+DummyJSON est une API de **données fictives**. Ce n'est pas une vraie boutique : les paniers ne sont pas de vraies commandes, les dates `order_date` sont générées pour l'exercice et les paiements sont simulés. Aucune conclusion ne doit être tirée pour un commerce réel.
+
+Ressources utilisées (toutes avec `?limit=0`) : `products`, `carts`, `users`, `posts`, `comments`, `recipes`, `quotes`, `todos` sur `https://dummyjson.com`. Les ressources `products`, `carts` et `users` sont le cœur du cas e-commerce, les autres servent à comparer des formats.
+
+Le fichier `data/processed/commandes_ecommerce.csv` contient une ligne par produit dans un panier (800 lignes, 208 paniers). Attention : `cart_total` et `cart_discounted_total` sont répétés sur chaque ligne d'un panier, il ne faut pas les additionner.
+
+### Données personnelles
+
+La collection `raw_users` contient des champs sensibles (fictifs mais structurés comme de vraies données) : mots de passe, numéro de sécurité sociale, IBAN, adresse... Les datasets d'analyse du TP3 ne contiennent plus `user_id` ni `username`, remplacés par un pseudonyme HMAC-SHA256. Une donnée pseudonymisée reste une donnée personnelle : les fichiers de `data/` sont générés en local par les notebooks et ne doivent pas être publiés.
 
 ## Dépannage
-- Si la collecte échoue : vérifier l'accès Internet et relancer le script.
-- Si l'API est indisponible : les notebooks peuvent être étudiés avec les fichiers d'exemple fournis.
-- Ne jamais considérer les données comme des données personnelles ou commerciales réelles.
+
+| Problème | Solution |
+|---|---|
+| `ServerSelectionTimeoutError` | MongoDB n'est pas démarré : `docker start mongo` |
+| `JAVA_GATEWAY_EXITED` ou `ClassNotFoundException: SparkSubmit` | Vérifier `java -version` (17) et que l'environnement Python n'est pas dans un chemin avec accent |
+| `Invalid Spark URL` | `SPARK_LOCAL_HOSTNAME=localhost` (nom du PC avec accent) |
+| `HADOOP_HOME and hadoop.home.dir are unset` | Installer winutils (voir plus haut) et redémarrer le kernel |
+| `La variable d'environnement PSEUDO_KEY n'est pas définie` | Définir la clé puis redémarrer VS Code / Jupyter |
+| `streamlit` n'est pas reconnu | Activer l'environnement Python et utiliser `python -m streamlit run dashboard/app.py` |
+| Le dashboard affiche « Datasets introuvables » | Exécuter d'abord `notebooks/TP3.ipynb` |

@@ -5,3 +5,5 @@ data/dataset_nettoye
 .env
 .vscode/
 .ipynb_checkpoints/
+/presentation/
+data/analytique/
